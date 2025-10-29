@@ -82,12 +82,12 @@ public class Main {
     }
 
     private static void cargarPlatos(ArrayPlatos store) {
-        store.add(new Plato(1, "Milanesa", 5000, 20));
-        store.add(new Plato(2, "Hamburguesa", 4500, 15));
-        store.add(new Plato(3, "Pizza Muzza", 6000, 18));
-        store.add(new Plato(4, "Ensalada César", 4200, 10));
-        store.add(new Plato(5, "Papas Fritas", 2500, 8));
-        store.add(new Plato(6, "Empanadas (3)", 3000, 12));
+        store.add(new Plato(1, "Milanesa Napolitana", 6000, 20));
+        store.add(new Plato(2, "Hamburguesa de la Casa", 6000, 15));
+        store.add(new Plato(3, "Fugazzeta", 15000, 18));
+        store.add(new Plato(4, "Plato de Ensalada", 4200, 5));
+        store.add(new Plato(5, "Porcion de Papas Fritas", 3000, 8));
+        store.add(new Plato(6, "Docena de Empanadas", 12000, 20));
     }
 
     private static void cargarRepartidores(ArrayRepartidores store) {
