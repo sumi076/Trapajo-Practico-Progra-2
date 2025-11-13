@@ -3,8 +3,8 @@ package resto.domain;
 public class Plato {
     public int id;
     public String nombre;
-    public int precio;       // entero simple
-    public int tiempoPrep;   // minutos estimados
+    public int precio;
+    public int tiempoPrep;
 
     public Plato(int id, String nombre, int precio, int tiempoPrep) {
         this.id = id;

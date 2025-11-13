@@ -6,67 +6,105 @@ import resto.storage.ArrayPlatos;
 import resto.storage.ArrayRepartidores;
 import resto.tda.PriorityQueueArray;
 import resto.tda.PriorityQueueTDA;
+import resto.tda.QueueArray;
+import resto.tda.QueueTDA;
+import resto.tda.DiccionarioMTDA;
 
 public class PedidoServiceImpl implements PedidoService {
     private final ArrayPedidos pedidos;
     private final ArrayPlatos platos;
     private final ArrayRepartidores reps;
-    private final PriorityQueueTDA pendientesPQ; // cola con prioridad de IDs
+    private final PriorityQueueTDA pendientesPQ; //cola con prioridad (pendientes)
+    private final QueueTDA colaCocina;           //cola FIFO (en preparación)
     private int nextId = 1;
 
     public PedidoServiceImpl(ArrayPedidos pedidos, ArrayPlatos platos, ArrayRepartidores reps) {
         this.pedidos = pedidos;
         this.platos = platos;
         this.reps = reps;
-        this.pendientesPQ = new PriorityQueueArray(5000); // capacidad simple
+        this.pendientesPQ = new PriorityQueueArray(5000);
+        this.colaCocina = new QueueArray(5000);
     }
+
+    // === ALTAS ===
 
     @Override
     public int crearPedido(String cliente, int[] platosIds, TipoPedido tipo, Prioridad prio) {
-        Pedido p = new Pedido(nextId++, cliente, platosIds, tipo, prio);
-        pedidos.add(p);
-        // si está pendiente, va a la cola con su prioridad (VIP=1, NORMAL=2)
-        int priority = (prio == Prioridad.VIP) ? 1 : 2;
-        pendientesPQ.add(p.id, priority);
-        return p.id;
+        //Si no especifican destino y es DOMICILIO, por defecto 0 (RESTAURANTE)
+        int destino = (tipo == TipoPedido.DOMICILIO) ? 0 : 0;
+        return crearPedidoConDestino(cliente, platosIds, tipo, prio, destino);
     }
 
     @Override
+    public int crearPedidoConDestino(String cliente, int[] platosIds, TipoPedido tipo,
+                                     Prioridad prio, int destinoVertexId) {
+        Pedido p = new Pedido(nextId++, cliente, platosIds, tipo, prio, destinoVertexId);
+        pedidos.add(p);
+
+        //Los pedidos nuevos arrancan como PENDIENTE
+        int priority = (prio == Prioridad.VIP) ? 1 : 2;
+        pendientesPQ.add(p.id, priority);
+
+        return p.id;
+    }
+
+    //FLUJO DE ESTADOS
+
+    @Override
     public Pedido verSiguientePendiente() {
-        Pedido p = peekPendingValid();
-        return p;
+        return peekPendingValid();
     }
 
     @Override
     public Pedido prepararSiguiente() {
-        Pedido p = pollPendingValid(); // saca el válido de la cola
+        //Saco el siguiente PENDIENTE (VIP primero) de la cola con prioridad
+        Pedido p = pollPendingValid();
         if (p != null) {
             p.estado = EstadoPedido.EN_PREPARACION;
+            //Entra en la cola de cocina (FIFO)
+            colaCocina.add(p.id);
         }
         return p;
     }
 
     @Override
     public void marcarListo(int id) {
-        Pedido p = pedidos.getById(id);
-        if (p != null) {
-            p.estado = EstadoPedido.LISTO;
-            // No necesito remover de la PQ aquí: lazy removal lo salta luego.
+        //Si hay algo en la cola de cocina, respetamos FIFO
+        if (!colaCocina.isEmpty()) {
+            int idCocina = colaCocina.getFirst();
+            colaCocina.remove();
+            Pedido p = pedidos.getById(idCocina);
+            if (p != null) {
+                p.estado = EstadoPedido.LISTO;
+            }
+        } else {
+            //Si por alguna razón la cola está vacía, mantenemos comportamiento anterior
+            Pedido p = pedidos.getById(id);
+            if (p != null) {
+                p.estado = EstadoPedido.LISTO;
+            }
         }
     }
 
     @Override
     public void asignarRepartidor() {
-        // Busco un pedido listo para DOMICILIO (no depende de la PQ)
+        //Legacy: asigna el primer LISTO DOMICILIO al primer repartidor disponible
         Pedido p = pedidos.findFirstReadyForDelivery();
         if (p == null) return;
-
         int repId = reps.nextDisponible();
         if (repId == -1) return;
-
         p.repartidorId = repId;
         p.estado = EstadoPedido.EN_ENVIO;
         reps.setDisponible(repId, false);
+    }
+
+    @Override
+    public void asignarPedidoARepartidor(int pedidoId, int repartidorId) {
+        Pedido p = pedidos.getById(pedidoId);
+        if (p == null || p.estado != EstadoPedido.LISTO) return;
+        p.repartidorId = repartidorId;
+        p.estado = EstadoPedido.EN_ENVIO;
+        reps.setDisponible(repartidorId, false);
     }
 
     @Override
@@ -74,53 +112,82 @@ public class PedidoServiceImpl implements PedidoService {
         Pedido p = pedidos.getById(id);
         if (p == null) return;
         p.estado = EstadoPedido.ENTREGADO;
-        if (p.repartidorId != -1) reps.setDisponible(p.repartidorId, true);
+        if (p.repartidorId != -1) {
+            reps.setDisponible(p.repartidorId, true);
+        }
     }
 
-    // Reportes (igual que antes, delega en ArrayPedidos)
     @Override
-    public int pendientes() { return pedidos.countByEstado(EstadoPedido.PENDIENTE); }
+    public Pedido getPedido(int pedidoId) {
+        return pedidos.getById(pedidoId);
+    }
 
-    @Override
-    public int finalizados() { return pedidos.countByEstado(EstadoPedido.ENTREGADO); }
-
-    @Override
-    public int repartosPor(int repId) { return pedidos.countEntregadosPorRepartidor(repId); }
+    //REPORTES
 
     @Override
-    public String clienteTop() { return pedidos.topClientePorCantidad(); }
+    public int pendientes() {
+        return pedidos.countByEstado(EstadoPedido.PENDIENTE);
+    }
 
     @Override
-    public int platoMasPedidoId() { return pedidos.topPlatoId(); }
+    public int finalizados() {
+        return pedidos.countByEstado(EstadoPedido.ENTREGADO);
+    }
 
-    // ---- helpers de cola con prioridad ----
+    @Override
+    public int repartosPor(int repId) {
+        return pedidos.countEntregadosPorRepartidor(repId);
+    }
 
-    // Devuelve el siguiente PENDIENTE sin sacar de la cola (saltando inválidos)
+    @Override
+    public String clienteTop() {
+        return pedidos.topClientePorCantidad();
+    }
+
+    @Override
+    public int platoMasPedidoId() {
+        return pedidos.topPlatoId();
+    }
+
+    //helpers PQ (cola con prioridad de pendientes)
+
     private Pedido peekPendingValid() {
         while (!pendientesPQ.isEmpty()) {
             int id = pendientesPQ.getElement();
             Pedido p = pedidos.getById(id);
-            if (p != null && p.estado == EstadoPedido.PENDIENTE) {
-                return p;
-            } else {
-                // inválido: estaba en la PQ pero ya no está PENDIENTE -> quitar y seguir
-                pendientesPQ.remove();
-            }
+            if (p != null && p.estado == EstadoPedido.PENDIENTE) return p;
+            pendientesPQ.remove();
         }
         return null;
     }
 
-    // Saca y devuelve el siguiente PENDIENTE válido
     private Pedido pollPendingValid() {
         while (!pendientesPQ.isEmpty()) {
             int id = pendientesPQ.getElement();
+            pendientesPQ.remove();
             Pedido p = pedidos.getById(id);
-            pendientesPQ.remove(); // quito el tope siempre
-            if (p != null && p.estado == EstadoPedido.PENDIENTE) {
-                return p;
-            }
-            // si no era válido, sigo el loop (lazy removal)
+            if (p != null && p.estado == EstadoPedido.PENDIENTE) return p;
         }
         return null;
+    }
+
+    @Override
+    public int totalPedidos() {
+        return pedidos.size();
+    }
+
+    @Override
+    public DiccionarioMTDA agruparPorRepartidor() {
+        return pedidos.agruparPorRepartidor();
+    }
+
+    @Override
+    public DiccionarioMTDA agruparPorBarrio() {
+        return pedidos.agruparPorBarrio();
+    }
+
+    @Override
+    public DiccionarioMTDA agruparPorCliente(String[] nombresClientes) {
+        return pedidos.agruparPorCliente(nombresClientes);
     }
 }

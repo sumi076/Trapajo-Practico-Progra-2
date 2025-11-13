@@ -1,18 +1,18 @@
 package resto.tda;
-
+//cola con prioridad
 public interface PriorityQueueTDA {
-    // Devuelve el primer elemento (sin quitarlo).
+    //Devuelve el primer elemento
     int getElement();
 
-    // Devuelve la prioridad del primer elemento.
+    //Devuelve la prioridad del primer elemento.
     int getPriority();
 
-    // Agrega un elemento con una prioridad asociada.
+    //Agrega un elemento con una prioridad asociada
     void add(int value, int priority);
 
-    // Elimina el primer elemento (el de mayor prioridad).
+    //Elimina el primer elemento (el de mayor prioridad)
     void remove();
 
-    // Indica si la estructura no tiene elementos.
+    //Indica si la estructura no tiene elementos
     boolean isEmpty();
 }

@@ -1,5 +1,5 @@
 package resto.tda;
-
+//cola con prioridad array
 public class PriorityQueueArray implements PriorityQueueTDA {
     private final int[] values;
     private final int[] prios;
@@ -35,7 +35,7 @@ public class PriorityQueueArray implements PriorityQueueTDA {
     public void remove() {
         if (size == 0) return;
         int idx = indexOfBest();
-        // compactar: mover el último a la posición eliminada
+        //compactar: mover el último a la posición eliminada
         size--;
         values[idx] = values[size];
         prios[idx]  = prios[size];
@@ -47,7 +47,6 @@ public class PriorityQueueArray implements PriorityQueueTDA {
     }
 
     private int indexOfBest() {
-        // “mejor” = prioridad más baja (1 mejor que 2)
         int bestIdx = 0;
         int bestP = prios[0];
         for (int i = 1; i < size; i++) {

@@ -1,8 +1,8 @@
 package resto.tda;
 
 public interface QueueTDA {
-    int getElement();
-    void add(int value);
-    void remove();
-    boolean isEmpty();
+    void add(int value);   //encola al final
+    void remove();         //desencola el primero
+    int getFirst();        //devuelve el primer elemento (sin sacarlo)
+    boolean isEmpty();     //true si está vacía
 }
